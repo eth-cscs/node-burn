@@ -83,7 +83,7 @@ void copy_to_host(T* from, T* to, size_t n) {
     check_status(status);
 }
 
-static void gemm(double* a, double*b, double*c,
+static void gpu_gemm(double* a, double*b, double*c,
           int m, int n, int k,
           double alpha, double beta)
 {
@@ -99,6 +99,16 @@ static void gemm(double* a, double*b, double*c,
     );
 }
 
+extern "C" void dgemm_(char*, char*, int*, int*,int*, double*, double*, int*, double*, int*, double*, double*, int*);
+
+void cpu_gemm(double* a, double*b, double*c,
+          int m, int n, int k,
+          double alpha, double beta)
+{
+    char trans = 'N';
+    dgemm_(&trans, &trans, &m, &n, &k, &alpha, a, &m, b, &k, &beta, c, &m);
+}
+
 static void gpu_rand(double* x, std::size_t n) {
     curandGenerator_t gen;
 
@@ -110,4 +120,23 @@ static void gpu_rand(double* x, std::size_t n) {
             curandGenerateNormalDouble(gen, x, n, 0., 1.));
     check_status(
             curandDestroyGenerator(gen));
+}
+
+static void cpu_rand(double* x, uint32_t n) {
+    auto xorshiftstar = [](uint64_t x) -> uint64_t {
+        x ^= x >> 12; // a
+        x ^= x << 25; // b
+        x ^= x >> 27; // c
+        return x * 0x2545F4914F6CDD1D;
+    };
+
+    auto generate_random_double = [&xorshiftstar](uint32_t u1, uint32_t u2) -> double {
+        uint64_t combined = ((uint64_t)u1 << 32) | u2;
+        uint64_t hashed = xorshiftstar(combined);
+        return (double)hashed / (double)UINT64_MAX;
+    };
+
+    for (uint32_t i=0; i<n; ++i) {
+        x[i] = generate_random_double(0, n) - 0.5;
+    }
 }

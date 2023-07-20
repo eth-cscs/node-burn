@@ -4,8 +4,10 @@
 #include <future>
 #include <latch>
 #include <mutex>
+#include <numeric>
 #include <thread>
 
+#include <fmt/core.h>
 #include <tinyopt/tinyopt.h>
 
 #include "util.h"
@@ -21,12 +23,14 @@ const char* usage_str =
     "  -h, --help           Display usage information and exit\n";
 
 
-std::mutex stdout_guard;
 std::latch work_wait_latch(3);
 
-void print(const std::string s) {
+template <class... Args>
+void print_safe(fmt::format_string<Args...> s, Args&&... args) {
+    static std::mutex stdout_guard;
     std::lock_guard<std::mutex> _(stdout_guard);
-    std::cout << s << std::endl;
+    fmt::print(s, std::forward<Args>(args)...);
+    std::fflush(stdout);
 }
 
 // there are three workloads that can be run:
@@ -54,6 +58,8 @@ int main(int argc, char** argv) {
     config cfg;
 
     try {
+        using namespace to::literals;
+
         auto help = [argv0 = argv[0]] { to::usage(argv0, usage_str); };
 
         std::pair<const char*, benchmark_kind> functions[] = {
@@ -63,8 +69,9 @@ int main(int argc, char** argv) {
         };
 
         to::option opts[] = {
-            {{cfg.gpu, to::keywords(functions)}, "-g", "--gpu"},
-            {{cfg.cpu, to::keywords(functions)}, "-c", "--cpu"},
+            {{cfg.gpu, to::keywords(functions)}, "-g"_compact, "--gpu"},
+            {{cfg.cpu, to::keywords(functions)}, "-c"_compact, "--cpu"},
+            {cfg.duration, "-d"_compact, "--duration"},
             {to::action(help), to::flag, to::exit, "-h", "--help"},
         };
 
@@ -77,30 +84,44 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::printf("--- Node-Burn ---\n");
-    std::printf("fire report:\n");
-    std::printf("  gpu: %s\n", benchmark_string(cfg.gpu));
-    std::printf("  cpu: %s\n", benchmark_string(cfg.cpu));
-    std::printf("\n");
-    std::fflush(stdout);
+    print_safe("--- Node-Burn ---\n");
+    print_safe("  gpu: {}\n", benchmark_string(cfg.gpu));
+    print_safe("  cpu: {}\n\n", benchmark_string(cfg.cpu));
 
     auto gpu_handle = std::async(std::launch::async, gpu_work, cfg);
-    print("main: gpu launched");
     auto cpu_handle = std::async(std::launch::async, cpu_work, cfg);
-    print("main: cpu launched");
     work_wait_latch.arrive_and_wait();
 
+    print_safe("--- burning for {} seconds\n", cfg.duration);
+
     gpu_handle.wait();
-    print("main: gpu finished");
     cpu_handle.wait();
-    print("main: cpu finished");
+
+    print_safe("finished\n");
+}
+
+std::string flop_report(uint32_t N, std::vector<double> times) {
+    std::sort(times.begin(), times.end());
+    double duration = std::accumulate(times.begin(), times.end(), 0.);
+    auto runs = times.size();
+    size_t flops_per_mul = 2*N*N*N;
+    size_t flops_total = runs*flops_per_mul;
+    size_t bytes = N*N*3*sizeof(value_type);
+
+    double gflops = 1e-9 * flops_total / duration;
+
+    //auto flops = [flops_per_mul] (double t) -> int {return int(std::round(flops_per_mul/t*1e-9));};
+
+    return fmt::format("{:8d} gemm {:8.2f} GFlops {:8.3f} seconds {:8.3f} Gbytes", runs, gflops, duration, 1e-9*bytes);
 }
 
 void gpu_work(config cfg) {
     using namespace std::chrono_literals;
 
+    auto start_init = timestamp();
+
     // INITIALISE
-    const std::uint64_t N = 10000;
+    const std::uint64_t N = 32000;
     const value_type alpha = 0.99;
     const value_type beta = 1./(N*N);
 
@@ -113,36 +134,66 @@ void gpu_work(config cfg) {
     gpu_rand(c, N*N);
 
     // call once
-    gemm(a, b, c, N, N, N, alpha, beta);
+    gpu_gemm(a, b, c, N, N, N, alpha, beta);
 
     device_synchronize();
 
     // synchronise before burning
-    print("gpu waiting");
+    print_safe("gpu: finished intialisation in {} seconds\n", duration(start_init));
     work_wait_latch.arrive_and_wait();
 
     std::vector<double> times;
-    auto startloop = timestamp();
-    while (duration(startloop)<cfg.duration) {
+    auto start_fire = timestamp();
+    while (duration(start_fire)<cfg.duration) {
         device_synchronize();
         auto start = timestamp();
-        gemm(a, b, c, N, N, N, alpha, beta);
+        gpu_gemm(a, b, c, N, N, N, alpha, beta);
         device_synchronize();
         auto stop = timestamp();
         times.push_back(duration(start, stop));
     }
 
-    std::cout << "finished " << times.size() << " iterations in " << duration(startloop) << " seconds" << std::endl;
-
+    print_safe("gpu: {}\n", flop_report(N, times));
 }
 
 void cpu_work(config cfg) {
     using namespace std::chrono_literals;
+    if (cfg.cpu==benchmark_kind::gemm) {
+        auto start_init = timestamp();
 
-    // perform initialisation
-    std::this_thread::sleep_for(1000ms);
+        // INITIALISE
+        const std::uint64_t N = 1000;
+        const value_type alpha = 0.99;
+        const value_type beta = 1./(N*N);
 
-    // synchronise before burning
-    print("cpu waiting");
-    work_wait_latch.arrive_and_wait();
+        auto a = malloc_host<value_type>(N*N);
+        auto b = malloc_host<value_type>(N*N);
+        auto c = malloc_host<value_type>(N*N);
+
+        cpu_rand(a, N*N);
+        cpu_rand(b, N*N);
+        cpu_rand(c, N*N);
+
+        // call once
+        cpu_gemm(a, b, c, N, N, N, alpha, beta);
+
+        // synchronise before burning
+        print_safe("cpu: finished intialisation in {} seconds\n", duration(start_init));
+        work_wait_latch.arrive_and_wait();
+
+        std::vector<double> times;
+        auto start_fire = timestamp();
+        while (duration(start_fire)<cfg.duration) {
+            auto start = timestamp();
+            cpu_gemm(a, b, c, N, N, N, alpha, beta);
+            auto stop = timestamp();
+            times.push_back(duration(start, stop));
+        }
+
+        print_safe("cpu: {}\n", flop_report(N, times));
+    }
+    else {
+        work_wait_latch.arrive_and_wait();
+        print_safe("cpu: no work\n");
+    }
 }
