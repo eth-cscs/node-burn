@@ -104,56 +104,60 @@ std::string flop_report(uint32_t N, std::vector<double> times) {
     std::sort(times.begin(), times.end());
     double duration = std::accumulate(times.begin(), times.end(), 0.);
     auto runs = times.size();
-    size_t flops_per_mul = 2*N*N*N;
-    size_t flops_total = runs*flops_per_mul;
+    double flops_per_mul = 2.0*N*N*N;
+    double flops_total = runs*flops_per_mul;
     size_t bytes = N*N*3*sizeof(value_type);
 
     double gflops = 1e-9 * flops_total / duration;
 
-    //auto flops = [flops_per_mul] (double t) -> int {return int(std::round(flops_per_mul/t*1e-9));};
-
-    return fmt::format("{:8d} gemm {:8.2f} GFlops {:8.3f} seconds {:8.3f} Gbytes", runs, gflops, duration, 1e-9*bytes);
+    return fmt::format("{:6d} gemm {:8.2F} GFlops {:8.1F} seconds {:8.3F} Gbytes", runs, gflops, duration, 1e-9*bytes);
 }
 
 void gpu_work(config cfg) {
     using namespace std::chrono_literals;
 
-    auto start_init = timestamp();
+    if (cfg.gpu==benchmark_kind::gemm) {
+        auto start_init = timestamp();
 
-    // INITIALISE
-    const std::uint64_t N = 32000;
-    const value_type alpha = 0.99;
-    const value_type beta = 1./(N*N);
+        // INITIALISE
+        const std::uint64_t N = 32000;
+        const value_type alpha = 0.99;
+        const value_type beta = 1./(N*N);
 
-    auto a = malloc_device<value_type>(N*N);
-    auto b = malloc_device<value_type>(N*N);
-    auto c = malloc_device<value_type>(N*N);
+        auto a = malloc_device<value_type>(N*N);
+        auto b = malloc_device<value_type>(N*N);
+        auto c = malloc_device<value_type>(N*N);
 
-    gpu_rand(a, N*N);
-    gpu_rand(b, N*N);
-    gpu_rand(c, N*N);
+        gpu_rand(a, N*N);
+        gpu_rand(b, N*N);
+        gpu_rand(c, N*N);
 
-    // call once
-    gpu_gemm(a, b, c, N, N, N, alpha, beta);
-
-    device_synchronize();
-
-    // synchronise before burning
-    print_safe("gpu: finished intialisation in {} seconds\n", duration(start_init));
-    work_wait_latch.arrive_and_wait();
-
-    std::vector<double> times;
-    auto start_fire = timestamp();
-    while (duration(start_fire)<cfg.duration) {
-        device_synchronize();
-        auto start = timestamp();
+        // call once
         gpu_gemm(a, b, c, N, N, N, alpha, beta);
-        device_synchronize();
-        auto stop = timestamp();
-        times.push_back(duration(start, stop));
-    }
 
-    print_safe("gpu: {}\n", flop_report(N, times));
+        device_synchronize();
+
+        // synchronise before burning
+        print_safe("gpu: finished intialisation in {} seconds\n", duration(start_init));
+        work_wait_latch.arrive_and_wait();
+
+        std::vector<double> times;
+        auto start_fire = timestamp();
+        while (duration(start_fire)<cfg.duration) {
+            device_synchronize();
+            auto start = timestamp();
+            gpu_gemm(a, b, c, N, N, N, alpha, beta);
+            device_synchronize();
+            auto stop = timestamp();
+            times.push_back(duration(start, stop));
+        }
+
+        print_safe("gpu: {}\n", flop_report(N, times));
+    }
+    else {
+        work_wait_latch.arrive_and_wait();
+        print_safe("gpu: no work\n");
+    }
 }
 
 void cpu_work(config cfg) {
@@ -162,7 +166,7 @@ void cpu_work(config cfg) {
         auto start_init = timestamp();
 
         // INITIALISE
-        const std::uint64_t N = 1000;
+        const std::uint64_t N = 8000;
         const value_type alpha = 0.99;
         const value_type beta = 1./(N*N);
 
