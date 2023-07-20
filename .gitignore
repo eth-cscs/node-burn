@@ -1,0 +1,5 @@
+# vim work files
+.*.sw[omnpq]
+
+# build path
+build
