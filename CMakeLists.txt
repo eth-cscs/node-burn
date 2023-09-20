@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.22)
 project(node-burn)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -9,10 +9,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # fmt library
-add_subdirectory(external/fmt EXCLUDE_FROM_ALL)
-find_package(fmt REQUIRED)
+#add_subdirectory(external/fmt EXCLUDE_FROM_ALL)
+#find_package(fmt REQUIRED)
 
-add_executable(burn main.cpp util.cpp numeric.cpp timers.cpp experiment.cpp)
+add_executable(burn main.cpp util.cpp numeric.cpp timers.cpp experiment.cpp external/fmt/src/format.cc external/fmt/src/os.cc)
 
 find_package(CUDAToolkit 11 REQUIRED)
 find_package(Threads REQUIRED)
@@ -21,7 +21,8 @@ find_package(BLAS REQUIRED)
 enable_language(CUDA)
 
 target_include_directories(burn PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+target_include_directories(burn PRIVATE ${CMAKE_SOURCE_DIR}/external/fmt/include/)
 target_include_directories(burn PRIVATE ${CMAKE_SOURCE_DIR}/external)
 
-target_link_libraries(burn PRIVATE CUDA::cudart CUDA::cublas CUDA::curand Threads::Threads fmt::fmt BLAS::BLAS)
+target_link_libraries(burn PRIVATE CUDA::cudart CUDA::cublas CUDA::curand Threads::Threads BLAS::BLAS)
 
