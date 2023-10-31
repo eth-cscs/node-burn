@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #add_subdirectory(external/fmt EXCLUDE_FROM_ALL)
 #find_package(fmt REQUIRED)
 
-add_executable(burn main.cpp util.cpp numeric.cpp timers.cpp experiment.cpp external/fmt/src/format.cc external/fmt/src/os.cc)
+add_executable(burn main.cpp util.cpp numeric.cpp stream_gpu.cu timers.cpp experiment.cpp external/fmt/src/format.cc external/fmt/src/os.cc)
 
 find_package(CUDAToolkit 11 REQUIRED)
 find_package(Threads REQUIRED)

@@ -24,7 +24,7 @@ struct experiment {
     experiment(std::string_view);
     experiment() = default;
     benchmark_kind kind = benchmark_kind::none;
-    std::vector<uint32_t> args;
+    std::vector<uint64_t> args;
 };
 
 // fmt library gubbins.
@@ -54,5 +54,5 @@ auto fmt::formatter<experiment>::format(experiment const& e, FormatContext& ctx)
     else if (e.kind==benchmark_kind::gemm) {
         return fmt::format_to(ctx.out(), "gemm, N={}", e.args[0]);
     }
-    return fmt::format_to(ctx.out(), "stream, not supported");
+    return fmt::format_to(ctx.out(), "stream triad");
 }
