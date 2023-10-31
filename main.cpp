@@ -16,7 +16,7 @@
 #include "timers.h"
 #include "util.h"
 
-using value_type = float;
+using value_type = double;
 
 const char* usage_str =
     "[OPTION]...\n"
