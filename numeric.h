@@ -2,14 +2,19 @@
 
 #include <cstdint>
 
-void gpu_gemm(double* a, double*b, double*c,
+template<class T>
+extern void gpu_gemm(T* a, T* b, T* c,
           int m, int n, int k,
-          double alpha, double beta);
+          T alpha, T beta);
 
-void cpu_gemm(double* a, double*b, double*c,
+template<class T>
+extern void cpu_gemm(T* a, T* b, T* c,
           int m, int n, int k,
-          double alpha, double beta);
+          T alpha, T beta);
 
-void gpu_rand(double* x, std::uint64_t n);
-void cpu_rand(double* x, std::uint64_t n);
+template<class T>
+extern void gpu_rand(T* x, std::uint64_t n);
+
+template<class T>
+extern void cpu_rand(T* x, std::uint64_t n);
 

@@ -15,7 +15,7 @@
 #include "timers.h"
 #include "util.h"
 
-using value_type = double;
+using value_type = float;
 
 const char* usage_str =
     "[OPTION]...\n"
@@ -157,6 +157,10 @@ void gpu_work(config cfg) {
 
         work_finish_latch.arrive_and_wait();
         print_safe("gpu: {}\n", flop_report(N, times));
+ 
+        cudaFree(a);
+        cudaFree(b);
+        cudaFree(c);
     }
     else {
         work_wait_latch.arrive_and_wait();
