@@ -258,8 +258,41 @@ void cpu_work(config cfg) {
 
         work_finish_latch.arrive_and_wait();
         print_safe("cpu: {}\n", flop_report_gemm(N, times));
-    }
-    else {
+    } else if (cfg.cpu.kind == benchmark_kind::stream) {
+        auto start_init = timestamp();
+
+        // INITIALISE
+        const std::uint64_t N = cfg.cpu.args[0];
+        const value_type alpha = 0.99;
+
+        auto a = malloc_host<value_type>(N);
+        auto b = malloc_host<value_type>(N);
+        auto c = malloc_host<value_type>(N);
+
+        cpu_rand(a, N);
+        cpu_rand(b, N);
+        cpu_rand(c, N);
+
+        // call once
+        cpu_stream_triad(a, b, c, alpha, N);
+
+        // synchronise before burning
+        print_safe("cpu: finished intialisation in {} seconds\n",
+                   duration(start_init));
+        work_wait_latch.arrive_and_wait();
+
+        std::vector<double> times;
+        auto start_fire = timestamp();
+        while (duration(start_fire) < cfg.duration) {
+            auto start = timestamp();
+            cpu_stream_triad(a, b, c, alpha, N);
+            auto stop = timestamp();
+            times.push_back(duration(start, stop));
+        }
+
+        work_finish_latch.arrive_and_wait();
+        print_safe("cpu: {}\n", bandwidth_report_stream(N, times));
+    } else {
         work_wait_latch.arrive_and_wait();
         work_finish_latch.arrive_and_wait();
         print_safe("cpu: no work\n");

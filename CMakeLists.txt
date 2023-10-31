@@ -16,6 +16,7 @@ set(CMAKE_CUDA_STANDARD 17)
 add_executable(burn main.cpp util.cpp numeric.cpp stream_gpu.cu timers.cpp experiment.cpp external/fmt/src/format.cc external/fmt/src/os.cc)
 
 find_package(CUDAToolkit 11 REQUIRED)
+find_package(OpenMP REQUIRED)
 find_package(Threads REQUIRED)
 find_package(BLAS REQUIRED)
 
@@ -25,5 +26,5 @@ target_include_directories(burn PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES
 target_include_directories(burn PRIVATE ${CMAKE_SOURCE_DIR}/external/fmt/include/)
 target_include_directories(burn PRIVATE ${CMAKE_SOURCE_DIR}/external)
 
-target_link_libraries(burn PRIVATE CUDA::cudart CUDA::cublas CUDA::curand Threads::Threads BLAS::BLAS)
+target_link_libraries(burn PRIVATE CUDA::cudart CUDA::cublas CUDA::curand Threads::Threads OpenMP::OpenMP_CXX BLAS::BLAS)
 
