@@ -52,10 +52,14 @@ experiment::experiment(std::string_view s) {
     }
 
     // set defaults
-    if (kind==benchmark_kind::gemm) {
+    if (kind == benchmark_kind::gemm) {
         if (args.empty()) {
             args.push_back(4000);
         }
     }
+    if (kind == benchmark_kind::stream) {
+        if (args.empty()) {
+            args.push_back(500000000);
+        }
+    }
 }
-
