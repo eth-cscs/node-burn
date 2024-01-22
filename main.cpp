@@ -221,6 +221,10 @@ void gpu_work(config cfg) {
         work_finish_latch.arrive_and_wait();
         print_safe("gpu: no work\n");
     }
+#else
+    work_wait_latch.arrive_and_wait();
+    work_finish_latch.arrive_and_wait();
+    print_safe("gpu: no work\n");
 #endif
 }
 
