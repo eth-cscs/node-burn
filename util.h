@@ -2,6 +2,10 @@
 
 #include <cstdint>
 
+#include <cstdlib>
+#include <algorithm>
+
+#ifdef USE_CUDA
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <curand.h>
@@ -18,10 +22,12 @@ T* malloc_device(size_t n) {
     check_status(status);
     return (T*)p;
 }
+#endif
 
 template <typename T>
-T* malloc_host(size_t N, T value=T()) {
-    T* ptr = (T*)(malloc(N*sizeof(T)));
+T* malloc_host(std::size_t N, T value=T()) {
+    // T* ptr = (T*)(malloc(N*sizeof(T)));
+    T* ptr = static_cast<T*>(malloc(N*sizeof(T)));
     std::fill(ptr, ptr+N, value);
 
     return ptr;

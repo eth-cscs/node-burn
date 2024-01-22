@@ -130,6 +130,7 @@ std::string bandwidth_report_stream(uint64_t N, std::vector<double> times) {
 }
 
 void gpu_work(config cfg) {
+#ifdef USE_CUDA    
     using namespace std::chrono_literals;
 
     if (cfg.gpu.kind==benchmark_kind::gemm) {
@@ -220,6 +221,7 @@ void gpu_work(config cfg) {
         work_finish_latch.arrive_and_wait();
         print_safe("gpu: no work\n");
     }
+#endif
 }
 
 void cpu_work(config cfg) {

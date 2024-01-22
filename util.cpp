@@ -1,5 +1,6 @@
 #include <iostream>
 
+#ifdef USE_CUDA
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <curand.h>
@@ -25,3 +26,4 @@ void check_status(curandStatus_t status) {
         std::exit(-1);
     }
 }
+#endif

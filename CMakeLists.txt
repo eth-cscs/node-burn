@@ -7,7 +7,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 enable_language(CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CUDA_STANDARD 17)
 
 # fmt library
 #add_subdirectory(external/fmt EXCLUDE_FROM_ALL)
@@ -15,16 +14,26 @@ set(CMAKE_CUDA_STANDARD 17)
 
 add_executable(burn main.cpp util.cpp numeric.cpp stream_gpu.cu timers.cpp experiment.cpp external/fmt/src/format.cc external/fmt/src/os.cc)
 
-find_package(CUDAToolkit 11 REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(Threads REQUIRED)
 find_package(BLAS REQUIRED)
 
-enable_language(CUDA)
+include(CheckLanguage)
+check_language(CUDA)
+if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+    # find_package(CUDAToolkit)
+    find_package(CUDAToolkit 11 REQUIRED)
+    set(CMAKE_CUDA_STANDARD 17)
+    target_compile_definitions(burn PRIVATE USE_CUDA)
+    target_include_directories(burn PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+    target_link_libraries(burn PRIVATE CUDA::cudart CUDA::cublas CUDA::curand Threads::Threads OpenMP::OpenMP_CXX BLAS::BLAS)
+endif()
 
-target_include_directories(burn PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+# target_include_directories(burn PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+
 target_include_directories(burn PRIVATE ${CMAKE_SOURCE_DIR}/external/fmt/include/)
 target_include_directories(burn PRIVATE ${CMAKE_SOURCE_DIR}/external)
-
-target_link_libraries(burn PRIVATE CUDA::cudart CUDA::cublas CUDA::curand Threads::Threads OpenMP::OpenMP_CXX BLAS::BLAS)
+target_link_libraries(burn PRIVATE Threads::Threads OpenMP::OpenMP_CXX BLAS::BLAS)
+# target_link_libraries(burn PRIVATE CUDA::cudart CUDA::cublas CUDA::curand Threads::Threads OpenMP::OpenMP_CXX BLAS::BLAS)
 

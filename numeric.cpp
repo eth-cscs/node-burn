@@ -1,12 +1,15 @@
+#ifdef USE_CUDA
 #include <cublas_v2.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <curand.h>
+#endif
 #include <type_traits>
 
 #include "numeric.h"
 #include "util.h"
 
+#ifdef USE_CUDA
 // helper for initializing cublas
 // not threadsafe: if we want to burn more than one GPU this will need to be reworked.
 cublasHandle_t get_blas_handle() {
@@ -58,6 +61,7 @@ template void gpu_gemm(float* a, float* b, float* c,
 template void gpu_gemm(double* a, double* b, double* c,
           int m, int n, int k,
           double alpha, double beta);
+#endif
 
 extern "C" void dgemm_(char*, char*, int*, int*,int*, double*, double*, int*, double*, int*, double*, double*, int*);
 extern "C" void sgemm_(char*, char*, int*, int*,int*, float*, float*, int*, float*, int*, float*, float*, int*);
@@ -85,7 +89,7 @@ template void cpu_gemm(float* a, float*b, float*c,
                        int m, int n, int k,
                        float alpha, float beta);
 
-
+#ifdef USE_CUDA
 template<class T>
 void gpu_rand(T* x, uint64_t n) {
     curandGenerator_t gen;
@@ -110,6 +114,7 @@ void gpu_rand(T* x, uint64_t n) {
 
 template void gpu_rand(float*, uint64_t);
 template void gpu_rand(double*, uint64_t);
+#endif
 
 // TODO: this should take additional arguments for the matrix dimensions, and
 // use the i,j values as 32 bit inputs to the hashing generator.
