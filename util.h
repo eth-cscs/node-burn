@@ -26,7 +26,6 @@ T* malloc_device(size_t n) {
 
 template <typename T>
 T* malloc_host(std::size_t N, T value=T()) {
-    // T* ptr = (T*)(malloc(N*sizeof(T)));
     T* ptr = static_cast<T*>(malloc(N*sizeof(T)));
     std::fill(ptr, ptr+N, value);
 
