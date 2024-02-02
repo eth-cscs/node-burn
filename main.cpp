@@ -24,7 +24,6 @@ const char* usage_str =
     "  -g, --gpu=bench      Perform benchmark on gpu, one of: none, gemm, stream\n"
     "  -c, --cpu=bench      Perform benchmark on cpu, one of: none, gemm, stream\n"
     "  -d, --duration=N     duration in N seconds\n"
-    "  -d, --duration=N     duration in N seconds\n"
     "  -h, --help           Display usage information and exit\n";
 
 
@@ -130,7 +129,7 @@ std::string bandwidth_report_stream(uint64_t N, std::vector<double> times) {
 }
 
 void gpu_work(config cfg) {
-#ifdef USE_CUDA    
+#ifdef USE_CUDA
     using namespace std::chrono_literals;
 
     if (cfg.gpu.kind==benchmark_kind::gemm) {
