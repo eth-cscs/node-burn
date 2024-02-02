@@ -29,8 +29,6 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(burn PRIVATE CUDA::cudart CUDA::cublas CUDA::curand)
 endif()
 
-# target_include_directories(burn PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-
 target_include_directories(burn PRIVATE ${CMAKE_SOURCE_DIR}/external/fmt/include/)
 target_include_directories(burn PRIVATE ${CMAKE_SOURCE_DIR}/external)
 target_link_libraries(burn PRIVATE Threads::Threads OpenMP::OpenMP_CXX BLAS::BLAS)
