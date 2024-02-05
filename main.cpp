@@ -4,17 +4,13 @@
 #include <future>
 #include <latch>
 #include <mutex>
-#include <numeric>
 #include <thread>
 
 #include <fmt/core.h>
 #include <tinyopt/tinyopt.h>
 
 #include "experiment.h"
-#include "numeric.h"
-#include "stream_gpu.h"
 #include "timers.h"
-#include "util.h"
 
 using value_type = double;
 
@@ -104,127 +100,42 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-std::string flop_report_gemm(uint32_t N, std::vector<double> times) {
-    std::sort(times.begin(), times.end());
-    double duration = std::accumulate(times.begin(), times.end(), 0.);
-    auto runs = times.size();
-    double flops_per_mul = 2.0*N*N*N;
-    double flops_total = runs*flops_per_mul;
-    size_t bytes = N*N*3*sizeof(value_type);
-
-    double gflops = 1e-9 * flops_total / duration;
-
-    return fmt::format("{:6d} iterations, {:8.2F} GFlops, {:8.1F} seconds, {:8.3F} Gbytes", runs, gflops, duration, 1e-9*bytes);
-}
-
-std::string bandwidth_report_stream(uint64_t N, std::vector<double> times) {
-    std::sort(times.begin(), times.end());
-    double duration = std::accumulate(times.begin(), times.end(), 0.);
-    auto runs = times.size();
-    double bytes_per_call = 3.0 * sizeof(value_type) * N;
-    double bytes_total = runs * bytes_per_call;
-
-    double GB_per_second = 1e-9 * bytes_total / duration;
-
-    return fmt::format("{:6d} iterations, {:8.2F} GB/s, {:8.1F} seconds", runs, GB_per_second, duration);
-}
-
 void gpu_work(config cfg) {
     using namespace std::chrono_literals;
+    const auto kind = cfg.gpu.kind;
 
-    if (cfg.gpu.kind==benchmark_kind::gemm) {
-        auto start_init = timestamp();
+    const std::uint32_t N = kind!=benchmark_kind::none? cfg.gpu.args[0]: 0;
 
-        // INITIALISE
-        const std::uint32_t N = cfg.gpu.args[0];
-        const value_type alpha = 0.99;
-        const value_type beta = 1./(N*N);
+    auto start_init = timestamp();
+    auto state = get_gpu_benchmark(N, cfg.gpu.kind);
 
-        auto a = malloc_device<value_type>(N*N);
-        auto b = malloc_device<value_type>(N*N);
-        auto c = malloc_device<value_type>(N*N);
+    state->run();
 
-        gpu_rand(a, N*N);
-        gpu_rand(b, N*N);
-        gpu_rand(c, N*N);
+    std::vector<double> times;
+    times.reserve(20000);
 
-        // call once
-        gpu_gemm(a, b, c, N, N, N, alpha, beta);
+    // synch before burning
+    state->synchronize();
+    print_safe("gpu: finished initialisation in {} seconds\n", duration(start_init));
+    work_wait_latch.arrive_and_wait();
 
-        device_synchronize();
-
-        // synchronise before burning
-        print_safe("gpu: finished initialisation in {} seconds\n", duration(start_init));
-        work_wait_latch.arrive_and_wait();
-
-        std::vector<double> times;
-        auto start_fire = timestamp();
-        while (duration(start_fire)<cfg.duration) {
-            device_synchronize();
-            auto start = timestamp();
-            gpu_gemm(a, b, c, N, N, N, alpha, beta);
-            device_synchronize();
-            auto stop = timestamp();
-            times.push_back(duration(start, stop));
-        }
-
-        work_finish_latch.arrive_and_wait();
-        print_safe("gpu: {}\n", flop_report_gemm(N, times));
- 
-        cudaFree(a);
-        cudaFree(b);
-        cudaFree(c);
-    } else if (cfg.gpu.kind == benchmark_kind::stream) {
-        auto start_init = timestamp();
-
-        // INITIALISE
-        const std::uint64_t N = cfg.gpu.args[0];
-        const value_type alpha = 0.99;
-
-        auto a = malloc_device<value_type>(N);
-        auto b = malloc_device<value_type>(N);
-        auto c = malloc_device<value_type>(N);
-
-        gpu_rand(a, N);
-        gpu_rand(b, N);
-        gpu_rand(c, N);
-
-        // call once
-        gpu_stream_triad(a, b, c, alpha, N);
-
-        device_synchronize();
-
-        // synchronise before burning
-        print_safe("gpu: finished initialisation in {} seconds\n", duration(start_init));
-        work_wait_latch.arrive_and_wait();
-
-        std::vector<double> times;
-        auto start_fire = timestamp();
-        while (duration(start_fire) < cfg.duration) {
-            device_synchronize();
-            auto start = timestamp();
-            gpu_stream_triad(a, b, c, alpha, N);
-            device_synchronize();
-            auto stop = timestamp();
-            times.push_back(duration(start, stop));
-        }
-
-        work_finish_latch.arrive_and_wait();
-        print_safe("gpu: {}\n", bandwidth_report_stream(N, times));
-
-        cudaFree(a);
-        cudaFree(b);
-        cudaFree(c);
-    } else {
-        work_wait_latch.arrive_and_wait();
-        work_finish_latch.arrive_and_wait();
-        print_safe("gpu: no work\n");
+    auto start_fire = timestamp();
+    while (duration(start_fire)<cfg.duration) {
+        auto start = timestamp();
+        state->run();
+        state->synchronize();
+        auto stop = timestamp();
+        times.push_back(duration(start, stop));
     }
+
+    work_finish_latch.arrive_and_wait();
+    print_safe("gpu: {}\n", state->report(times));
 }
 
 void cpu_work(config cfg) {
     using namespace std::chrono_literals;
     if (cfg.cpu.kind==benchmark_kind::gemm) {
+        /*
         auto start_init = timestamp();
 
         // INITIALISE
@@ -258,7 +169,11 @@ void cpu_work(config cfg) {
 
         work_finish_latch.arrive_and_wait();
         print_safe("cpu: {}\n", flop_report_gemm(N, times));
+        */
+        work_wait_latch.arrive_and_wait();
+        work_finish_latch.arrive_and_wait();
     } else if (cfg.cpu.kind == benchmark_kind::stream) {
+        /*
         auto start_init = timestamp();
 
         // INITIALISE
@@ -292,6 +207,9 @@ void cpu_work(config cfg) {
 
         work_finish_latch.arrive_and_wait();
         print_safe("cpu: {}\n", bandwidth_report_stream(N, times));
+        */
+        work_wait_latch.arrive_and_wait();
+        work_finish_latch.arrive_and_wait();
     } else {
         work_wait_latch.arrive_and_wait();
         work_finish_latch.arrive_and_wait();

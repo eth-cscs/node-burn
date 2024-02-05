@@ -13,7 +13,7 @@ set(CMAKE_CUDA_STANDARD 17)
 #add_subdirectory(external/fmt EXCLUDE_FROM_ALL)
 #find_package(fmt REQUIRED)
 
-add_executable(burn main.cpp util.cpp numeric.cpp stream_gpu.cu timers.cpp experiment.cpp external/fmt/src/format.cc external/fmt/src/os.cc)
+add_executable(burn main.cpp gpu_benchmark.cpp stream_gpu.cu timers.cpp experiment.cpp external/fmt/src/format.cc external/fmt/src/os.cc)
 
 find_package(CUDAToolkit 11 REQUIRED)
 find_package(OpenMP REQUIRED)
