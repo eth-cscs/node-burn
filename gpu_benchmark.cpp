@@ -35,14 +35,6 @@ T* malloc_device(size_t n) {
     return (T*)p;
 }
 
-template <typename T>
-T* malloc_host(size_t N, T value=T()) {
-    T* ptr = (T*)(malloc(N*sizeof(T)));
-    std::fill(ptr, ptr+N, value);
-
-    return ptr;
-}
-
 // helper for initializing cublas
 // not threadsafe: if we want to burn more than one GPU this will need to be reworked.
 cublasHandle_t get_blas_handle() {
@@ -86,17 +78,6 @@ void gpu_gemm(T* a, T* b, T* c,
         );
     }
 }
-
-/*
-template void gpu_gemm(float* a, float* b, float* c,
-          int m, int n, int k,
-          float alpha, float beta);
-
-template void gpu_gemm(double* a, double* b, double* c,
-          int m, int n, int k,
-          double alpha, double beta);
-*/
-
 template<class T>
 void gpu_rand(T* x, uint64_t n) {
     curandGenerator_t gen;
@@ -126,11 +107,14 @@ struct gpu_gemm_state: public benchmark {
 
     gpu_gemm_state(std::uint32_t N):
         N(N),
-        a(malloc_device<value_type>(N*N)),
-        b(malloc_device<value_type>(N*N)),
-        c(malloc_device<value_type>(N*N)),
         beta(1./(N*N))
-    {
+    {}
+
+    void init() {
+        a = malloc_device<value_type>(N*N);
+        b = malloc_device<value_type>(N*N);
+        c = malloc_device<value_type>(N*N);
+
         gpu_rand(a, N*N);
         gpu_rand(b, N*N);
         gpu_rand(c, N*N);
@@ -169,18 +153,21 @@ struct gpu_stream_state: public benchmark {
     using value_type = T;
 
     gpu_stream_state(std::uint32_t N):
-        N(N),
-        a(malloc_device<value_type>(N)),
-        b(malloc_device<value_type>(N)),
-        c(malloc_device<value_type>(N))
-    {
-        gpu_rand(a, N);
-        gpu_rand(b, N);
-        gpu_rand(c, N);
-    }
+        N(N)
+    {}
 
     void run() {
         gpu_stream_triad(a, b, c, alpha, N);
+    }
+
+    void init() {
+        a = malloc_device<value_type>(N);
+        b = malloc_device<value_type>(N);
+        c = malloc_device<value_type>(N);
+
+        gpu_rand(a, N);
+        gpu_rand(b, N);
+        gpu_rand(c, N);
     }
 
     void synchronize() {
@@ -206,14 +193,14 @@ private:
     value_type* c;
 };
 
-std::unique_ptr<benchmark> get_gpu_benchmark(std::uint32_t N, benchmark_kind kind) {
-    switch (kind) {
+std::unique_ptr<benchmark> get_gpu_benchmark(const experiment& e) {
+    switch (e.kind) {
         case benchmark_kind::gemm:
-            return std::make_unique<gpu_gemm_state<value_type>>(N);
+            return std::make_unique<gpu_gemm_state<value_type>>(e.args[0]);
         case benchmark_kind::stream:
-            return std::make_unique<gpu_stream_state<value_type>>(N);
+            return std::make_unique<gpu_stream_state<value_type>>(e.args[0]);
         default:
-            return std::make_unique<null_benchmark>(N);
+            return std::make_unique<null_benchmark>();
     }
 }
 

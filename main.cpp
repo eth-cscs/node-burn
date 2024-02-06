@@ -1,8 +1,8 @@
 #include <cstdio>
 
+#include <barrier>
 #include <chrono>
 #include <future>
-#include <latch>
 #include <mutex>
 #include <thread>
 
@@ -20,12 +20,12 @@ const char* usage_str =
     "  -g, --gpu=bench      Perform benchmark on gpu, one of: none, gemm, stream\n"
     "  -c, --cpu=bench      Perform benchmark on cpu, one of: none, gemm, stream\n"
     "  -d, --duration=N     duration in N seconds\n"
-    "  -d, --duration=N     duration in N seconds\n"
     "  -h, --help           Display usage information and exit\n";
 
+// There is a worker thread for each hardware target
+constexpr int num_workers = with_gpu? 2: 1;
 
-std::latch work_wait_latch(3);
-std::latch work_finish_latch(3);
+std::barrier B(num_workers+1);
 
 template <class... Args>
 void print_safe(fmt::format_string<Args...> s, Args&&... args) {
@@ -38,11 +38,11 @@ void print_safe(fmt::format_string<Args...> s, Args&&... args) {
 struct config {
     experiment gpu;
     experiment cpu;
-    uint32_t duration = 10;      // seconds
+    // duration of the benchmark in seconds
+    uint32_t duration = 10;
 };
 
-void gpu_work(config);
-void cpu_work(config);
+void run_work(std::unique_ptr<benchmark> state, std::string prefix, std::uint32_t total_duration);
 
 int main(int argc, char** argv) {
     config cfg;
@@ -86,41 +86,54 @@ int main(int argc, char** argv) {
     print_safe("  duration: {} seconds\n", cfg.duration);
     print_safe("-----------------------------\n\n");
 
-    auto gpu_handle = std::async(std::launch::async, gpu_work, cfg);
-    auto cpu_handle = std::async(std::launch::async, cpu_work, cfg);
-    work_wait_latch.arrive_and_wait();
+    if (cfg.gpu.kind!=benchmark_kind::none && !with_gpu) {
+        print_safe("WARNING: GPU is not enabled. Recompile with GPU enabled to burn the GPU.\n");
+        exit(1);
+    }
 
+    using job_handle = decltype (std::async(std::launch::async, [](){return;}));
+    std::vector<job_handle> jobs;
+
+    if (with_gpu) {
+        jobs.push_back(
+                std::async(
+                    std::launch::async,
+                    run_work,
+                    get_gpu_benchmark(cfg.gpu), "gpu", cfg.duration));
+    }
+
+    jobs.push_back(
+            std::async(
+                std::launch::async,
+                run_work,
+                get_cpu_benchmark(cfg.cpu), "cpu", cfg.duration));
+
+    B.arrive_and_wait();
     print_safe("\n--- burning for {} seconds\n\n", cfg.duration);
+    B.arrive_and_wait();
 
-    work_finish_latch.arrive_and_wait();
-
-    gpu_handle.wait();
-    cpu_handle.wait();
+    for (auto& job: jobs) job.wait();
 
     return 0;
 }
 
-void gpu_work(config cfg) {
+void run_work(std::unique_ptr<benchmark> state, std::string prefix, std::uint32_t total_duration) {
     using namespace std::chrono_literals;
-    const auto kind = cfg.gpu.kind;
 
-    const std::uint32_t N = kind!=benchmark_kind::none? cfg.gpu.args[0]: 0;
-
+    std::vector<double> times(100000);
     auto start_init = timestamp();
-    auto state = get_gpu_benchmark(N, cfg.gpu.kind);
 
+    // intialise state and run once
+    state->init();
     state->run();
-
-    std::vector<double> times;
-    times.reserve(20000);
 
     // synch before burning
     state->synchronize();
-    print_safe("gpu: finished initialisation in {} seconds\n", duration(start_init));
-    work_wait_latch.arrive_and_wait();
+    print_safe("{}: finished initialisation in {} seconds\n", prefix, duration(start_init));
+    B.arrive_and_wait();
 
     auto start_fire = timestamp();
-    while (duration(start_fire)<cfg.duration) {
+    while (duration(start_fire)<total_duration) {
         auto start = timestamp();
         state->run();
         state->synchronize();
@@ -128,91 +141,6 @@ void gpu_work(config cfg) {
         times.push_back(duration(start, stop));
     }
 
-    work_finish_latch.arrive_and_wait();
-    print_safe("gpu: {}\n", state->report(times));
-}
-
-void cpu_work(config cfg) {
-    using namespace std::chrono_literals;
-    if (cfg.cpu.kind==benchmark_kind::gemm) {
-        /*
-        auto start_init = timestamp();
-
-        // INITIALISE
-        const std::uint32_t N = cfg.cpu.args[0];
-        const value_type alpha = 0.99;
-        const value_type beta = 1./(N*N);
-
-        auto a = malloc_host<value_type>(N*N);
-        auto b = malloc_host<value_type>(N*N);
-        auto c = malloc_host<value_type>(N*N);
-
-        cpu_rand(a, N*N);
-        cpu_rand(b, N*N);
-        cpu_rand(c, N*N);
-
-        // call once
-        cpu_gemm(a, b, c, N, N, N, alpha, beta);
-
-        // synchronise before burning
-        print_safe("cpu: finished intialisation in {} seconds\n", duration(start_init));
-        work_wait_latch.arrive_and_wait();
-
-        std::vector<double> times;
-        auto start_fire = timestamp();
-        while (duration(start_fire)<cfg.duration) {
-            auto start = timestamp();
-            cpu_gemm(a, b, c, N, N, N, alpha, beta);
-            auto stop = timestamp();
-            times.push_back(duration(start, stop));
-        }
-
-        work_finish_latch.arrive_and_wait();
-        print_safe("cpu: {}\n", flop_report_gemm(N, times));
-        */
-        work_wait_latch.arrive_and_wait();
-        work_finish_latch.arrive_and_wait();
-    } else if (cfg.cpu.kind == benchmark_kind::stream) {
-        /*
-        auto start_init = timestamp();
-
-        // INITIALISE
-        const std::uint64_t N = cfg.cpu.args[0];
-        const value_type alpha = 0.99;
-
-        auto a = malloc_host<value_type>(N);
-        auto b = malloc_host<value_type>(N);
-        auto c = malloc_host<value_type>(N);
-
-        cpu_rand(a, N);
-        cpu_rand(b, N);
-        cpu_rand(c, N);
-
-        // call once
-        cpu_stream_triad(a, b, c, alpha, N);
-
-        // synchronise before burning
-        print_safe("cpu: finished intialisation in {} seconds\n",
-                   duration(start_init));
-        work_wait_latch.arrive_and_wait();
-
-        std::vector<double> times;
-        auto start_fire = timestamp();
-        while (duration(start_fire) < cfg.duration) {
-            auto start = timestamp();
-            cpu_stream_triad(a, b, c, alpha, N);
-            auto stop = timestamp();
-            times.push_back(duration(start, stop));
-        }
-
-        work_finish_latch.arrive_and_wait();
-        print_safe("cpu: {}\n", bandwidth_report_stream(N, times));
-        */
-        work_wait_latch.arrive_and_wait();
-        work_finish_latch.arrive_and_wait();
-    } else {
-        work_wait_latch.arrive_and_wait();
-        work_finish_latch.arrive_and_wait();
-        print_safe("cpu: no work\n");
-    }
+    B.arrive_and_wait();
+    print_safe("{}: {}\n", prefix, state->report(times));
 }
