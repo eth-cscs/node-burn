@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <numeric>
 
 #include <fmt/core.h>
 
@@ -63,3 +64,29 @@ experiment::experiment(std::string_view s) {
         }
     }
 }
+
+std::string flop_report_gemm(uint32_t N, std::vector<double> times) {
+    std::sort(times.begin(), times.end());
+    double duration = std::accumulate(times.begin(), times.end(), 0.);
+    auto runs = times.size();
+    double flops_per_mul = 2.0*N*N*N;
+    double flops_total = runs*flops_per_mul;
+    size_t bytes = N*N*3*sizeof(value_type);
+
+    double gflops = 1e-9 * flops_total / duration;
+
+    return fmt::format("{:6d} iterations, {:8.2F} GFlops, {:8.1F} seconds, {:8.3F} Gbytes", runs, gflops, duration, 1e-9*bytes);
+}
+
+std::string bandwidth_report_stream(uint64_t N, std::vector<double> times) {
+    std::sort(times.begin(), times.end());
+    double duration = std::accumulate(times.begin(), times.end(), 0.);
+    auto runs = times.size();
+    double bytes_per_call = 3.0 * sizeof(value_type) * N;
+    double bytes_total = runs * bytes_per_call;
+
+    double GB_per_second = 1e-9 * bytes_total / duration;
+
+    return fmt::format("{:6d} iterations, {:8.2F} GB/s, {:8.1F} seconds", runs, GB_per_second, duration);
+}
+
