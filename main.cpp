@@ -6,6 +6,8 @@
 #include <mutex>
 #include <thread>
 
+#include <unistd.h>
+
 #include <fmt/core.h>
 #include <tinyopt/tinyopt.h>
 
@@ -20,12 +22,14 @@ const char* usage_str =
     "  -g, --gpu=bench      Perform benchmark on gpu, one of: none, gemm, stream\n"
     "  -c, --cpu=bench      Perform benchmark on cpu, one of: none, gemm, stream\n"
     "  -d, --duration=N     duration in N seconds\n"
+    "  -b, --batch          enable batch mode (less verbose output)\n"
     "  -h, --help           Display usage information and exit\n";
 
 // There is a worker thread for each hardware target
 constexpr int num_workers = with_gpu? 2: 1;
 
 std::barrier B(num_workers+1);
+bool batch_mode = false;
 
 template <class... Args>
 void print_safe(fmt::format_string<Args...> s, Args&&... args) {
@@ -65,6 +69,7 @@ int main(int argc, char** argv) {
             {cpu, "-c"_compact, "--cpu"},
             {cfg.duration, "-d"_compact, "--duration"},
             {to::action(help), to::flag, to::exit, "-h", "--help"},
+            {to::set(batch_mode, true), to::flag, "-b", "--batch"},
         };
 
         if (!to::run(opts, argc, argv+1)) return 0;
@@ -79,12 +84,14 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    print_safe("--------- Node-Burn ---------\n");
-    print_safe("experiments:\n");
-    print_safe("  gpu: {}\n", cfg.gpu);
-    print_safe("  cpu: {}\n", cfg.cpu);
-    print_safe("  duration: {} seconds\n", cfg.duration);
-    print_safe("-----------------------------\n\n");
+    if (!batch_mode) {
+        print_safe("--------- Node-Burn ---------\n");
+        print_safe("experiments:\n");
+        print_safe("  gpu: {}\n", cfg.gpu);
+        print_safe("  cpu: {}\n", cfg.cpu);
+        print_safe("  duration: {} seconds\n", cfg.duration);
+        print_safe("-----------------------------\n\n");
+    }
 
     if (cfg.gpu.kind!=benchmark_kind::none && !with_gpu) {
         print_safe("WARNING: GPU is not enabled. Recompile with GPU enabled to burn the GPU.\n");
@@ -109,7 +116,7 @@ int main(int argc, char** argv) {
                 get_cpu_benchmark(cfg.cpu), "cpu", cfg.duration));
 
     B.arrive_and_wait();
-    print_safe("\n--- burning for {} seconds\n\n", cfg.duration);
+    if (!batch_mode) print_safe("\n--- burning for {} seconds\n\n", cfg.duration);
     B.arrive_and_wait();
 
     for (auto& job: jobs) job.wait();
@@ -120,16 +127,21 @@ int main(int argc, char** argv) {
 void run_work(std::unique_ptr<benchmark> state, std::string prefix, std::uint32_t total_duration) {
     using namespace std::chrono_literals;
 
-    std::vector<double> times(100000);
+    std::vector<double> times;
+    times.reserve(100000);
     auto start_init = timestamp();
 
+    char host[512];
+    gethostname(host, 511);
+
+    std::string full_prefix = host + (":" + prefix);
     // intialise state and run once
     state->init();
     state->run();
 
     // synch before burning
     state->synchronize();
-    print_safe("{}: finished initialisation in {} seconds\n", prefix, duration(start_init));
+    if (!batch_mode) print_safe("{} finished initialisation in {} seconds\n", full_prefix, duration(start_init));
     B.arrive_and_wait();
 
     auto start_fire = timestamp();
@@ -142,5 +154,6 @@ void run_work(std::unique_ptr<benchmark> state, std::string prefix, std::uint32_
     }
 
     B.arrive_and_wait();
-    print_safe("{}: {}\n", prefix, state->report(times));
+    if (!batch_mode || state->kind!=benchmark_kind::none)
+    print_safe("{} {}\n", full_prefix, state->report(times));
 }

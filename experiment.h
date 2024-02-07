@@ -38,11 +38,14 @@ struct experiment {
 
 
 struct benchmark {
+    benchmark(benchmark_kind k): kind(k) {}
+    benchmark() = default;
     virtual void run() = 0;
     virtual void init() = 0;
     virtual void synchronize() = 0;
     virtual std::string report(std::vector<double>) = 0;
     virtual ~benchmark() {};
+    const benchmark_kind kind = benchmark_kind::none;
 };
 
 struct null_benchmark: benchmark {

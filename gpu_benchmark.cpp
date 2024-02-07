@@ -106,6 +106,7 @@ struct gpu_gemm_state: public benchmark {
     using value_type = T;
 
     gpu_gemm_state(std::uint32_t N):
+        benchmark(benchmark_kind::gemm),
         N(N),
         beta(1./(N*N))
     {}
@@ -153,6 +154,7 @@ struct gpu_stream_state: public benchmark {
     using value_type = T;
 
     gpu_stream_state(std::uint32_t N):
+        benchmark(benchmark_kind::stream),
         N(N)
     {}
 
