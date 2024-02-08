@@ -12,7 +12,14 @@
 #include <tinyopt/tinyopt.h>
 
 #include "experiment.h"
+#include "instrument.h"
 #include "timers.h"
+
+#ifdef NB_INSTRUMENT
+constexpr bool with_instrument = true;
+#else
+constexpr bool with_instrument = false;
+#endif
 
 using value_type = double;
 
@@ -101,6 +108,8 @@ int main(int argc, char** argv) {
     using job_handle = decltype (std::async(std::launch::async, [](){return;}));
     std::vector<job_handle> jobs;
 
+    auto instrument = get_instrument();
+
     if (with_gpu) {
         jobs.push_back(
                 std::async(
@@ -115,11 +124,22 @@ int main(int argc, char** argv) {
                 run_work,
                 get_cpu_benchmark(cfg.cpu), "cpu", cfg.duration));
 
+    // all tasks wait after starting initialisation
     B.arrive_and_wait();
+    instrument->start();
+    // START
+    // all tasks start workload
     if (!batch_mode) print_safe("\n--- burning for {} seconds\n\n", cfg.duration);
+    // all tasks wait after finishing work
     B.arrive_and_wait();
+    instrument->stop();
+    // STOP
 
     for (auto& job: jobs) job.wait();
+
+    char host[512];
+    gethostname(host, 511);
+    instrument->print_result(fmt::format("{}:", host));
 
     return 0;
 }

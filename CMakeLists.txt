@@ -10,7 +10,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # By default try to build GPU.
 # CPU only requires GPU to be explicitly disabled.
-option(NB_GPU "GPU target: one of (none, cuda)." ON)
+option(NB_GPU "CUDA GPU support." ON)
+
+# enable support for cray pm_counters
+option(NB_PMCOUNTERS "pm counter support." OFF)
 
 set(burn_sources
     main.cpp
@@ -34,6 +37,12 @@ if(NB_GPU)
     endif()
 endif()
 
+if(NB_PMCOUNTERS)
+    list(APPEND burn_sources
+        pm_counters.cpp
+    )
+endif()
+
 add_executable(burn ${burn_sources})
 
 find_package(OpenMP REQUIRED)
@@ -49,5 +58,7 @@ if(NB_GPU)
     target_include_directories(burn PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
     target_link_libraries(burn PRIVATE CUDA::cudart CUDA::cublas CUDA::curand)
 endif()
-
+if(NB_PMCOUNTERS)
+    target_compile_definitions(burn PRIVATE NB_INSTRUMENT)
+endif()
 
