@@ -48,6 +48,12 @@ nid001276:gpu    588 iterations, 39170.08 GFlops,     30.0 seconds,    2.400 Gby
 nid001276:gpu    589 iterations, 39224.21 GFlops,     30.0 seconds,    2.400 Gbytes
 ```
 
+### Power Measurement on HPE-Cray systems
+
+If running on a HPE Cray-EX system with `pm_counters`, nodeburn can be configured to generate a report of power consumption on each node. Enable it at build time with the `NB_PMCOUNTERS` CMake option (see below).
+
+`node-burn` will generate power reports from all of the energy counters that it can detect on each node - the values reported will vary according to the node architecture.
+
 ## Requirements
 
 C++20 for the C++ code, C++17 for the CUDA code.
@@ -65,4 +71,10 @@ CC=gcc CXX=g++ cmake $src_path
 
 # explicitly disable building for CUDA
 CC=gcc CXX=g++ cmake $src_path -DNB_GPU=off
+```
+
+On HPE Cray-EX systems, power readings from `pm_counters` can be generated using the `NB_PMCOUNTERS` option.
+```bash
+# enable pm counters for average power consumption
+CC=gcc CXX=g++ cmake $src_path -DNB_PMCOUNTERS=on
 ```
