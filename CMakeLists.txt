@@ -29,6 +29,9 @@ if(NB_GPU)
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
         set(CMAKE_CUDA_STANDARD 17)
+        if("${CMAKE_CUDA_ARCHITECTURES}" STREQUAL "")
+            set(CMAKE_CUDA_ARCHITECTURES "80;90" CACHE STRING "CUDA architectures" FORCE)
+        endif()
         enable_language(CUDA)
         list(APPEND burn_sources
             gpu_benchmark.cpp
