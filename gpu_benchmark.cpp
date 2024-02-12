@@ -43,6 +43,7 @@ cublasHandle_t get_blas_handle() {
 
     if(!is_initialized) {
         cublasCreate(&cublas_handle);
+        is_initialized = true;
     }
     return cublas_handle;
 }
