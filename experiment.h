@@ -13,7 +13,11 @@ constexpr bool with_gpu = true;
 constexpr bool with_gpu = false;
 #endif
 
+#ifdef USE_DOUBLE_PRECISION
 using value_type=double;
+#else
+using value_type=float;
+#endif
 
 // there are three workloads that can be run:
 //  none:    do nothing

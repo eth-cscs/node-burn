@@ -21,8 +21,6 @@ constexpr bool with_instrument = true;
 constexpr bool with_instrument = false;
 #endif
 
-using value_type = double;
-
 const char* usage_str =
     "[OPTION]...\n"
     "\n"

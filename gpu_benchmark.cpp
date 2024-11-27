@@ -43,6 +43,9 @@ cublasHandle_t get_blas_handle() {
 
     if(!is_initialized) {
         cublasCreate(&cublas_handle);
+        #ifdef USE_TF32_CUBLAS
+	cublasSetMathMode(cublas_handle, CUBLAS_TF32_TENSOR_OP_MATH);
+        #endif
         is_initialized = true;
     }
     return cublas_handle;
