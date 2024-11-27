@@ -12,6 +12,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # CPU only requires GPU to be explicitly disabled.
 option(NB_GPU "CUDA GPU support." ON)
 
+option(DOUBLE "Double precision." ON)
+option(TF32 "Use tensor cores." ON)
+
 # enable support for cray pm_counters
 option(NB_PMCOUNTERS "pm counter support." OFF)
 
@@ -55,6 +58,15 @@ find_package(BLAS REQUIRED)
 target_include_directories(burn PRIVATE ${CMAKE_SOURCE_DIR}/external/fmt/include/)
 target_include_directories(burn PRIVATE ${CMAKE_SOURCE_DIR}/external)
 target_link_libraries(burn PRIVATE Threads::Threads OpenMP::OpenMP_CXX BLAS::BLAS)
+
+if(DOUBLE)
+    target_compile_definitions(burn PRIVATE USE_DOUBLE_PRECISION)
+endif()
+
+if(TF32)
+    target_compile_definitions(burn PRIVATE USE_TF32_CUBLAS)
+endif()
+
 if(NB_GPU)
     find_package(CUDAToolkit 11 REQUIRED)
     target_compile_definitions(burn PRIVATE NB_GPU)
