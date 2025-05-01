@@ -16,10 +16,10 @@ Node burn can run GEMM or STREAM workloads on the GPU only, CPU only, or both si
 # and STREAM triad with length 500000 on the CPU, for 30 seconds.
 ./burn -ggemm,5000 -cstream,500000 -d30
 
-# run GEMM on the GPU, nothing on the CPU, for 3 minutes.
+# run GEMM on the CPU, nothing on the GPU, for 3 minutes.
 ./burn -cgemm,5000 -d180
 
-# run GEMM on the CPU, nothing on the GPU, for 20 seconds.
+# run GEMM on the GPU, nothing on the CPU, for 20 seconds.
 ./burn -ggemm,5000 -d20
 ```
 
