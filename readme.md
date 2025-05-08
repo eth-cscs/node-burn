@@ -29,7 +29,7 @@ Use the `--batch` option to produce less verbose output that can be easily parse
 ```bash
 # on a system with 4 GPUs per node, use all 16 GPUs on 4 nodes to
 # run GEMM with matrix dimension 10000*10000 on the GPU for 30 seconds
-srun -n16 -N4 ./burn --batch -ggemm,10000 -d30
+srun -n16 -N4 --gpus-per-task=1 ./burn --batch -ggemm,10000 -d30
 nid001272:gpu    584 iterations, 38930.92 GFlops,     30.0 seconds,    2.400 Gbytes
 nid001272:gpu    579 iterations, 38555.99 GFlops,     30.0 seconds,    2.400 Gbytes
 nid001272:gpu    561 iterations, 37348.14 GFlops,     30.0 seconds,    2.400 Gbytes
