@@ -9,9 +9,17 @@ extern "C" void dgemm_(char*, char*, int*, int*,int*, double*, double*, int*, do
 extern "C" void sgemm_(char*, char*, int*, int*,int*, float*, float*, int*, float*, int*, float*, float*, int*);
 
 template <typename T>
+void fill_parallel(T* ptr, const size_t N, const T value) {
+    #pragma omp parallel for schedule(static)
+    for(size_t i = 0; i < N; i++) {
+	   ptr[i] = value; 
+    }
+}
+
+template <typename T>
 T* malloc_host(size_t N, T value=T()) {
     T* ptr = (T*)(malloc(N*sizeof(T)));
-    std::fill(ptr, ptr+N, value);
+    fill_parallel(ptr, N, value);
 
     return ptr;
 }
