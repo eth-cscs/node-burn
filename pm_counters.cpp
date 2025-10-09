@@ -72,7 +72,7 @@ std::optional<int> get_local_slurm_id() {
 
 struct pm_counters: public instrument {
     bool enabled_ = false;
-    const char* err_string_ = nullptr;
+    const char* err_string_ = "no energy counters available in /sys/cray/pm_counters";
     std::vector<pm_probe> probes_;
     std::vector<energy_sample> start_;
     std::vector<energy_sample> end_;
@@ -88,9 +88,6 @@ struct pm_counters: public instrument {
             }
         }
         enabled_ = !probes_.empty();
-        if (!enabled_) {
-            err_string_ = "no energy counters available in /sys/cray/pm_counters";
-        }
     }
 
     // return true if successful
@@ -131,7 +128,7 @@ struct pm_counters: public instrument {
     // generate one line string that describes the result
     void print_result(const std::string& prefix) override {
         if (!enabled_) {
-            fmt::print("{}{}", prefix, err_string_);
+            fmt::print("{}{}\n", prefix, err_string_);
             return;
         }
         std::string values;
